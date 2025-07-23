@@ -1,0 +1,7 @@
+---
+- name: Reboot Linux Machines
+  hosts: all
+  become: yes
+  tasks:
+    - name: Reboot machine
+      reboot:
