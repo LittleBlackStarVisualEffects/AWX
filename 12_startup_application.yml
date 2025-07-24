@@ -1,0 +1,29 @@
+---
+- name: Set up AYON to autostart for all users
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+    - name: Create AYON alias in /etc/profile.d
+      ansible.builtin.copy:
+        dest: /etc/profile.d/ayon.sh
+        content: |
+          #!/bin/bash
+          alias black='/softwares/applications/Ynput/AYON-1.3.3-linux-rocky9/ayon'
+        mode: '0755'
+
+    - name: Create AYON autostart desktop entry
+      ansible.builtin.copy:
+        dest: /etc/xdg/autostart/ayon.desktop
+        content: |
+          [Desktop Entry]
+          Type=Application
+          Exec=/softwares/applications/Ynput/AYON-1.3.3-linux-rocky9/ayon
+          Hidden=false
+          NoDisplay=false
+          X-GNOME-Autostart-enabled=true
+          Name=AYON
+          Comment=Start AYON on login
+        mode: '0644'

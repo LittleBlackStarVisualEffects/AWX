@@ -1,0 +1,32 @@
+---
+- name: Install NoMachine RPM on all worklight machines
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    nomachine_rpm_src: "/softwares/apps/34_Nomachine/nomachine_9.0.188_11_x86_64.rpm"
+    nomachine_rpm_dest: "/tmp/nomachine_9.0.188_11_x86_64.rpm"
+
+  tasks:
+
+    - name: Copy NoMachine RPM to remote hosts
+      ansible.builtin.copy:
+        src: "{{ nomachine_rpm_src }}"
+        dest: "{{ nomachine_rpm_dest }}"
+        mode: '0644'
+
+    - name: Check if NoMachine is already installed
+      ansible.builtin.shell: "rpm -q nomachine"
+      register: check_nomachine
+      ignore_errors: true
+
+    - name: Install NoMachine RPM if not already installed
+      ansible.builtin.shell: "rpm -ivh {{ nomachine_rpm_dest }}"
+      when: check_nomachine.rc != 0
+      register: rpm_result
+
+    - name: Print install result if installation ran
+      ansible.builtin.debug:
+        var: rpm_result.stdout_lines
+      when: check_nomachine.rc != 0

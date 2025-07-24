@@ -1,0 +1,23 @@
+---
+- name: Install Mattermost Desktop app via rpm
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+    - name: Copy Mattermost rpm to target machines
+      ansible.builtin.copy:
+        src: /softwares/apps/48_mattermost/mattermost-desktop-5.12.1-linux-x86_64.rpm
+        dest: /tmp/mattermost-desktop-5.12.1-linux-x86_64.rpm
+        mode: '0644'
+
+    - name: Install Mattermost rpm package if not already installed
+      ansible.builtin.shell: rpm -q mattermost-desktop || rpm -ivh /tmp/mattermost-desktop-5.12.1-linux-x86_64.rpm
+      args:
+        warn: false
+      register: mattermost_install
+
+    - name: Print Mattermost install status
+      ansible.builtin.debug:
+        var: mattermost_install.stdout_lines

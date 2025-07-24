@@ -1,0 +1,23 @@
+---
+- name: Block USB storage devices (pen drives) on Rocky Linux 9.5
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+    - name: Blacklist USB storage kernel modules and prevent loading
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/usb-storage-block.conf
+        content: |
+          blacklist usb-storage
+          blacklist uas
+          install usb-storage /bin/true
+        mode: '0644'
+
+    - name: Regenerate initramfs to apply kernel module changes
+      ansible.builtin.command: dracut -f
+
+    - name: Reboot to apply USB storage block
+      ansible.builtin.reboot:
+        reboot_timeout: 300

@@ -1,0 +1,62 @@
+---
+- name: Install and Configure Houdini on Rocky Linux
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    houdini_version: "20.5.613"
+    houdini_installer: "houdini-20.5.613-linux_x86_64_gcc11.2.tar.gz"
+    remote_installer_path: "/softwares/apps/11_Houdini/lnx/{{ houdini_installer }}"
+    extract_dir: "/opt/houdini-{{ houdini_version }}-linux_x86_64_gcc11.2"
+    install_dir: "/opt/hfs{{ houdini_version }}"
+    symlink_path: "/opt/hfs20.5.613"
+
+  tasks:
+
+    - name: Check if symlink exists
+      ansible.builtin.stat:
+        path: "{{ symlink_path }}"
+      register: symlink_stat
+
+    - name: Remove symlink if it exists
+      ansible.builtin.file:
+        path: "{{ symlink_path }}"
+        state: absent
+      when: symlink_stat.stat.islnk is defined and symlink_stat.stat.islnk
+
+    - name: Ensure install directory exists
+      ansible.builtin.file:
+        path: "{{ install_dir }}"
+        state: directory
+        mode: '0775'
+        owner: root
+        group: root
+
+    - name: Extract Houdini installer tar.gz if extract_dir does not exist
+      ansible.builtin.unarchive:
+        src: "{{ remote_installer_path }}"
+        dest: /softwares/apps/11_Houdini/lnx/
+        remote_src: yes
+      when: not symlink_stat.stat.exists
+
+    - name: Run Houdini installer script
+      ansible.builtin.shell: >
+        ./houdini.install --accept-EULA 2021-10-13 --no-root-check {{ install_dir }}
+      args:
+        chdir: "{{ extract_dir }}"
+        creates: "{{ install_dir }}/bin/houdini"
+
+    - name: Set Houdini environment globally
+      ansible.builtin.copy:
+        dest: /etc/profile.d/houdini.sh
+        content: |
+          #!/bin/bash
+          export HFS={{ install_dir }}
+          export PATH={{ install_dir }}/bin:$PATH
+          export LD_LIBRARY_PATH={{ install_dir }}/dsolib:$LD_LIBRARY_PATH
+        mode: '0755'
+
+    - name: Ensure ownership of Houdini installation to ansible_user
+      ansible.builtin.command: chown -R {{ ansible_user }}:{{ ansible_user }} {{ install_dir }}
+      ignore_errors: yes

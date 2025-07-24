@@ -1,0 +1,14 @@
+---
+- name: Create AYON, Tray, MyChat, and Krita aliases for all users
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Add alias for tray to /etc/profile.d/trayIcons.sh
+      ansible.builtin.copy:
+        dest: /etc/profile.d/trayIcons.sh
+        content: |
+          #!/bin/bash
+          alias tray='gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com'
+        mode: '0755'

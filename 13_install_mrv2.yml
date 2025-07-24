@@ -1,0 +1,23 @@
+---
+- name: Install mrv2 app via rpm
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+    - name: Copy mrv2 rpm to target machines
+      ansible.builtin.copy:
+        src: /softwares/apps/47_mrv2/mrv2-v1.1.1-Linux-amd64.rpm
+        dest: /tmp/mrv2-v1.1.1-Linux-amd64.rpm
+        mode: '0644'
+
+    - name: Install mrv2 rpm package if not already installed
+      ansible.builtin.shell: rpm -q mrv2 || rpm -ivh /tmp/mrv2-v1.1.1-Linux-amd64.rpm
+      args:
+        warn: false
+      register: mrv2_install
+
+    - name: Print mrv2 install status
+      ansible.builtin.debug:
+        var: mrv2_install.stdout_lines

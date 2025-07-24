@@ -1,0 +1,17 @@
+---
+- name: Set VFX environment variables globally
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Create /etc/profile.d script for AYON, TERM, OCIO, and Foundry license env vars
+      ansible.builtin.copy:
+        dest: /etc/profile.d/vfx_env.sh
+        content: |
+          #!/bin/bash
+          export AYON_SERVER_URL="http://192.168.0.8:5000"
+          export TERM=xterm
+          export OCIO=/softwares/aces1.2/aces_1.2/config.ocio
+          export FOUNDRY_LICENSE_FILE=192.168.0.11@4101
+        mode: '0755'

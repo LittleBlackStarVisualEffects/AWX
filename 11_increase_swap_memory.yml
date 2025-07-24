@@ -1,0 +1,64 @@
+---
+- name: Ensure clean 64GB swap memory is set up and persistent
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+    - name: Disable all active swap
+      ansible.builtin.command: swapoff -a
+      ignore_errors: true
+
+    - name: Remove existing /home/swapfile if it exists
+      ansible.builtin.file:
+        path: /home/swapfile
+        state: absent
+
+    - name: Remove old swapfile entry from /etc/fstab if exists
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^/home/swapfile\s+none\s+swap\s+sw\s+0\s+0'
+        state: absent
+
+    - name: Create new 64GB swapfile
+      ansible.builtin.command: fallocate -l 64G /home/swapfile
+      args:
+        creates: /home/swapfile
+
+    - name: Set permissions on /home/swapfile
+      ansible.builtin.file:
+        path: /home/swapfile
+        mode: '0600'
+        owner: root
+        group: root
+
+    - name: Format the new swapfile
+      ansible.builtin.command: mkswap /home/swapfile
+
+    - name: Enable the new swapfile
+      ansible.builtin.command: swapon /home/swapfile
+
+    - name: Ensure /home/swapfile is listed in /etc/fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/home/swapfile none swap sw 0 0"
+        state: present
+        create: yes
+        insertafter: EOF
+
+    - name: Set swappiness to 10
+      ansible.builtin.sysctl:
+        name: vm.swappiness
+        value: '10'
+        state: present
+        sysctl_set: yes
+        reload: yes
+
+    - name: Show active swap
+      ansible.builtin.command: swapon --show
+      register: swap_status
+
+    - name: Print swap status
+      ansible.builtin.debug:
+        var: swap_status.stdout

@@ -1,0 +1,103 @@
+---
+- name: Install NVIDIA drivers and setup environment on Rocky Linux 9.5
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Update all packages
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_cache: yes
+
+    - name: Install EPEL release
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
+
+    - name: Import RPMFusion GPG key (free)
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-free-el-9
+
+    - name: Import RPMFusion GPG key (nonfree)
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-nonfree-el-9
+
+    - name: Install RPMFusion repos
+      ansible.builtin.dnf:
+        name:
+          - https://mirrors.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm
+          - https://mirrors.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-9.noarch.rpm
+        state: present
+
+    - name: Refresh DNF metadata cache
+      ansible.builtin.dnf:
+        update_cache: yes
+
+    - name: Install Development Tools group
+      ansible.builtin.dnf:
+        name: "@development"
+        state: present
+
+    - name: Ensure kernel-devel matches running kernel
+      ansible.builtin.dnf:
+        name: "kernel-devel-{{ ansible_kernel }}"
+        state: present
+
+    - name: Install additional build dependencies
+      ansible.builtin.dnf:
+        name:
+          - dkms
+          - gcc
+          - make
+          - elfutils-libelf-devel
+          - kernel-headers
+        state: present
+
+    - name: Import ELRepo GPG key
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+
+    - name: Install ELRepo release
+      ansible.builtin.dnf:
+        name: https://www.elrepo.org/elrepo-release-9.el9.elrepo.noarch.rpm
+        state: present
+
+    - name: Enable elrepo-kernel repo
+      ansible.builtin.shell: dnf config-manager --set-enabled elrepo-kernel
+
+    - name: Install nvidia-detect (optional, harmless even if exit code is 1)
+      ansible.builtin.shell: nvidia-detect
+      register: nvidia_detect_result
+      failed_when: false
+      changed_when: false
+
+    - name: Install akmod-nvidia and optional CUDA support
+      ansible.builtin.dnf:
+        name:
+          - akmod-nvidia
+          - xorg-x11-drv-nvidia
+          - xorg-x11-drv-nvidia-cuda
+        state: present
+        enablerepo: rpmfusion-nonfree-updates
+
+    - name: Reboot to apply driver changes
+      ansible.builtin.reboot:
+        reboot_timeout: 180
+
+    - name: Wait until nvidia-smi returns successfully
+      ansible.builtin.shell: nvidia-smi
+      register: smi_check
+      retries: 10
+      delay: 10
+      until: smi_check.rc == 0
+
+    - name: Enable persistent mode on NVIDIA GPU
+      ansible.builtin.shell: nvidia-smi -pm ENABLED
+      register: nvidia_pm
+      changed_when: "'Enabled' in nvidia_pm.stdout"
+      ignore_errors: yes

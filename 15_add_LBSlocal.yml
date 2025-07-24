@@ -1,0 +1,21 @@
+---
+- name: Ensure DNS entries in /etc/resolv.conf
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+    - name: Ensure nameserver 8.8.8.8 is in /etc/resolv.conf
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf
+        line: "nameserver 8.8.8.8"
+        state: present
+        insertafter: EOF
+
+    - name: Ensure search LBS.local is in /etc/resolv.conf
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf
+        line: "search LBS.local"
+        state: present
+        insertafter: EOF

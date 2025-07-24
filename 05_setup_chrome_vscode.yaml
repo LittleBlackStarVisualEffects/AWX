@@ -1,0 +1,78 @@
+---
+- name: Configure DNS, GNOME UI, and Install Chrome & VS Code on Rocky Linux
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+    #################### DNS CONFIG ####################
+
+    - name: Ensure nameserver 192.168.0.10 is present
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf
+        line: "nameserver 192.168.0.10"
+        state: present
+        insertafter: BOF
+
+    - name: Ensure nameserver 8.8.8.8 is present
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf
+        line: "nameserver 8.8.8.8"
+        state: present
+        insertafter: "nameserver 192.168.0.10"
+
+    #################### GOOGLE CHROME ####################
+
+    - name: Add Google Chrome repo
+      ansible.builtin.yum_repository:
+        name: google-chrome
+        description: Google Chrome Repo
+        baseurl: https://dl.google.com/linux/chrome/rpm/stable/x86_64
+        gpgcheck: yes
+        gpgkey: https://dl.google.com/linux/linux_signing_key.pub
+        enabled: yes
+
+    - name: Install Google Chrome stable
+      ansible.builtin.dnf:
+        name: google-chrome-stable
+        state: present
+
+    #################### GNOME UI TWEAK ####################
+
+    - name: Install required dconf tools
+      ansible.builtin.dnf:
+        name: dconf
+        state: present
+
+    - name: Create dconf profile directory
+      ansible.builtin.file:
+        path: /etc/dconf/db/local.d
+        state: directory
+        mode: '0755'
+
+    - name: Create dconf profile file for window button layout
+      ansible.builtin.copy:
+        dest: /etc/dconf/db/local.d/00-window-buttons
+        content: |
+          [org/gnome/desktop/wm/preferences]
+          button-layout='appmenu:minimize,maximize,close'
+
+    - name: Ensure dconf profile database is updated
+      ansible.builtin.command: dconf update
+
+    #################### VISUAL STUDIO CODE ####################
+
+    - name: Add Microsoft VS Code repo
+      ansible.builtin.yum_repository:
+        name: vscode
+        description: Visual Studio Code
+        baseurl: https://packages.microsoft.com/yumrepos/vscode
+        gpgcheck: yes
+        gpgkey: https://packages.microsoft.com/keys/microsoft.asc
+        enabled: yes
+
+    - name: Install Visual Studio Code
+      ansible.builtin.dnf:
+        name: code
+        state: present

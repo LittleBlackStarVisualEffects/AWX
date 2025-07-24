@@ -1,0 +1,69 @@
+---
+- name: Install Deadline Client, Set Alias, and Prep Env on Rocky Linux
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    deadline_installer_path: "/softwares/apps/14_deadline/Deadline-10.2.1.1-linux-installers/DeadlineClient-10.2.1.1-linux-x64-installer.run"
+    deadline_repository_path: "/softwares/deadline"
+    deadline_ssl_cert: "/softwares/deadline/Deadline10Client.pfx"
+    deadline_daemon_user: "{{ ansible_user }}"
+    deadline_install_dir: "/opt/Thinkbox/Deadline10"
+
+  tasks:
+
+    ########### LIB + PERMISSIONS + ENV PREP ############
+
+    - name: Ensure /mnt/share exists with full access
+      ansible.builtin.file:
+        path: /mnt/share
+        state: directory
+        mode: '0777'
+        recurse: yes
+
+    - name: Copy libffi.so.6 to /usr/lib64/
+      ansible.builtin.copy:
+        src: /softwares/apps/14_deadline/usr/lib64/libffi.so.6
+        dest: /usr/lib64/libffi.so.6
+        owner: root
+        group: root
+        mode: '0755'
+
+    ########### DEADLINE INSTALL #########################
+
+    - name: Ensure Deadline installer is executable
+      ansible.builtin.file:
+        path: "{{ deadline_installer_path }}"
+        mode: '0755'
+
+    - name: Run Deadline Client silent installer
+      ansible.builtin.shell: >
+        "{{ deadline_installer_path }}"
+        --mode unattended
+        --connectiontype Repository
+        --repositorydir "{{ deadline_repository_path }}"
+        --dbsslcertificate "{{ deadline_ssl_cert }}"
+        --daemonuser "{{ deadline_daemon_user }}"
+        --launcherdaemon true
+        --prefix "{{ deadline_install_dir }}"
+      args:
+        creates: "{{ deadline_install_dir }}/bin/deadlinecommand"
+
+    - name: Verify Deadline client installation
+      ansible.builtin.shell: "{{ deadline_install_dir }}/bin/deadlinecommand GetRepositoryPath"
+      register: deadline_check
+
+    - name: Print Deadline repository connection output
+      ansible.builtin.debug:
+        var: deadline_check.stdout
+
+    ########### DEADLINE MONITOR ALIAS ###################
+
+    - name: Create system-wide alias for Deadline Monitor
+      ansible.builtin.copy:
+        dest: /etc/profile.d/deadline_monitor.sh
+        content: |
+          #!/bin/bash
+          alias deadlinemonitor='/opt/Thinkbox/Deadline10/bin/deadlinemonitor'
+        mode: '0755'

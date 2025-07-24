@@ -1,0 +1,158 @@
+---
+- name: AD Join & NFS Mount Setup for Workstations
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    domain_name: "lbs.local"
+    domain_user: "Administrator"
+    domain_password: "XAEA12Musk"        # 🔐 Consider using Ansible Vault for real use
+    domain_controller: "192.168.0.10"
+
+  tasks:
+
+    # AD JOIN SECTION
+
+    - name: Install required packages for AD integration
+      ansible.builtin.dnf:
+        name:
+          - realmd
+          - sssd
+          - oddjob
+          - oddjob-mkhomedir
+          - adcli
+          - samba-common
+          - samba-common-tools
+          - krb5-workstation
+        state: present
+
+    - name: Set DNS to AD domain controller (for realm discovery)
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf
+        regexp: '^nameserver'
+        line: "nameserver {{ domain_controller }}"
+        state: present
+        backup: yes
+
+    - name: Check if machine is already joined to AD
+      ansible.builtin.shell: realm list | grep -i {{ domain_name }}
+      register: domain_check
+      changed_when: false
+      failed_when: false
+
+    - name: Join AD domain if not already joined
+      ansible.builtin.shell: echo '{{ domain_password }}' | realm join --user={{ domain_user }} {{ domain_name }}
+      register: join_result
+      when: domain_check.rc != 0
+      changed_when: "'successfully enrolled' in join_result.stdout"
+      failed_when: join_result.rc != 0 and "'already joined' not in join_result.stderr"
+
+    - name: Enable home directory creation on login
+      ansible.builtin.command: authselect select sssd with-mkhomedir --force
+
+    - name: Start and enable oddjobd service
+      ansible.builtin.systemd:
+        name: oddjobd
+        state: started
+        enabled: yes
+
+    - name: Set access_provider to permit in sssd.conf
+      ansible.builtin.lineinfile:
+        path: /etc/sssd/sssd.conf
+        regexp: '^access_provider\s*='
+        line: 'access_provider = permit'
+        insertafter: '^\[domain/.*\]'
+        state: present
+
+    - name: Ensure /etc/sssd/sssd.conf has correct permissions
+      ansible.builtin.file:
+        path: /etc/sssd/sssd.conf
+        mode: '0600'
+        owner: root
+        group: root
+
+    - name: Restart SSSD to apply new access_provider setting
+      ansible.builtin.systemd:
+        name: sssd
+        state: restarted
+
+    - name: Confirm AD domain join
+      ansible.builtin.shell: realm list
+      register: joined_info
+      changed_when: false
+
+    - name: Display joined domain info
+      ansible.builtin.debug:
+        var: joined_info.stdout
+
+    # /CG FIX SECTION
+
+    - name: Ensure /CG directory exists
+      ansible.builtin.file:
+        path: /CG
+        state: directory
+        owner: root
+        group: root
+        mode: '0777'
+
+    - name: Remove incorrect NFS entry for /CG from /etc/fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: '^192\.168\.0\.99:/volume1/CG\s+/CG\s+nfs'
+
+    - name: Add correct NFS mount for /CG to /etc/fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "192.168.0.98:/mnt/avrilfour/softwares/CG /CG nfs vers=4,sec=sys 0 0"
+        state: present
+        insertafter: EOF
+        create: yes
+
+    - name: Reload systemd daemon
+      ansible.builtin.command: systemctl daemon-reexec
+
+    - name: Mount all filesystems in fstab
+      ansible.builtin.command: mount -a
+
+    # GENERAL NFS MOUNTS SECTION
+
+    - name: Create NFS mount directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0777'
+      loop:
+        - /softwares
+        - /jobs
+        - /cache
+        - /release
+
+    - name: Mount NFS shares temporarily
+      ansible.builtin.mount:
+        path: "{{ item.mount }}"
+        src: "{{ item.src }}"
+        fstype: nfs
+        opts: vers=4,sec=sys
+        state: mounted
+      loop:
+        - { mount: "/softwares", src: "192.168.0.98:/mnt/avrilfour/softwares" }
+        - { mount: "/jobs",      src: "192.168.0.98:/mnt/avrilfour/jobs" }
+        - { mount: "/cache",     src: "192.168.0.98:/mnt/avrilfour/cache" }
+        - { mount: "/release",   src: "192.168.0.98:/mnt/avrilfour/publish" }
+
+    - name: Persist NFS mounts in fstab
+      ansible.builtin.mount:
+        path: "{{ item.mount }}"
+        src: "{{ item.src }}"
+        fstype: nfs
+        opts: vers=4,sec=sys
+        state: present
+      loop:
+        - { mount: "/softwares", src: "192.168.0.98:/mnt/avrilfour/softwares" }
+        - { mount: "/jobs",      src: "192.168.0.98:/mnt/avrilfour/jobs" }
+        - { mount: "/cache",     src: "192.168.0.98:/mnt/avrilfour/cache" }
+        - { mount: "/release",   src: "192.168.0.98:/mnt/avrilfour/publish" }
