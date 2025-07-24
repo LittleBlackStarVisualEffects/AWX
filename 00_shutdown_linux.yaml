@@ -1,0 +1,12 @@
+---
+- name: Shutdown All Machines
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Shutdown the machine gracefully
+      ansible.builtin.shell: shutdown -h now "Shutting down via Ansible"
+      async: 0
+      poll: 0
+      ignore_errors: yes

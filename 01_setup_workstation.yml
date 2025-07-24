@@ -1,0 +1,141 @@
+---
+- name: Full Workstation Setup on Rocky Linux
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Set Google DNS (8.8.8.8)
+      ansible.builtin.copy:
+        dest: /etc/resolv.conf
+        content: |
+          nameserver 8.8.8.8
+        force: yes
+        mode: '0644'
+
+    - name: Clean all DNF metadata
+      ansible.builtin.command: dnf clean all
+
+    - name: Remove DNF cache directory
+      ansible.builtin.file:
+        path: /var/cache/dnf
+        state: absent
+
+    - name: Rebuild DNF cache
+      ansible.builtin.command: dnf makecache
+
+    - name: Run dnf update
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+
+    # Optionally remove the following if update suffices
+    - name: Run full upgrade using dnf
+      ansible.builtin.command: dnf upgrade -y
+
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ ansible_user }}"
+
+    - name: Ensure /etc/hosts has correct hostname
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1'
+        line: "127.0.1.1 {{ ansible_user }}"
+        create: yes
+
+    - name: Stop and disable firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: stopped
+        enabled: no
+
+    - name: Install EPEL release
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
+
+    - name: Install common utilities
+      ansible.builtin.dnf:
+        name:
+          - git
+          - curl
+          - wget
+          - vim
+          - htop
+          - net-tools
+          - unzip
+          - bash-completion
+          - python3
+          - python3-pip
+          - gnome-tweaks
+          - dkms
+          - gcc
+          - make
+          - elfutils-libelf-devel
+          - mesa-libGL-devel
+          - libglvnd-devel
+          - glew
+          - openssl
+          - libXp
+          - libXmu
+          - libXi
+          - libXinerama
+          - libGLU
+          - libXcursor
+          - libXrandr
+          - libXScrnSaver
+          - alsa-lib
+          - compat-openssl11
+          - dbus-libs
+          - expat
+          - fontconfig
+          - glibc
+          - libatomic
+          - libevent
+          - libglvnd-glx
+          - libglvnd-opengl
+          - libICE
+          - libSM
+          - libX11
+          - libX11-xcb
+          - libxcb
+          - libXcomposite
+          - libXcursor
+          - libXdamage
+          - libXext
+          - libXfixes
+          - libXi
+          - libxkbcommon
+          - libxkbcommon-x11
+          - libXrandr
+          - libXrender
+          - libXt
+          - libXtst
+          - libzstd
+          - mc
+          - nspr
+          - nss
+          - nss-util
+          - openldap
+          - pciutils-libs
+          - tbb
+          - tcsh
+          - xcb-util
+          - xcb-util-cursor
+          - xcb-util-image
+          - xcb-util-keysyms
+          - xcb-util-renderutil
+          - xcb-util-wm
+          - zlib
+          - gnome-shell-extension-appindicator
+        state: present
+
+    - name: Enable SSHD service
+      ansible.builtin.systemd:
+        name: sshd
+        enabled: true
+
+    - name: Start SSHD service
+      ansible.builtin.systemd:
+        name: sshd
+        state: started
