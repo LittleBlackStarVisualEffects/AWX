@@ -1,0 +1,51 @@
+docker --version
+docker compose version
+
+
+kubectl version --client
+
+minikube version
+
+minikube start --driver=docker --memory=4g --cpus=2
+
+kubectl get nodes
+
+curl -s https://api.github.com/repos/ansible/awx-operator/releases | grep tag_name
+
+git clone https://github.com/ansible/awx-operator.git
+
+cd awx-operator
+
+git checkout 2.19.1
+
+kubectl apply -k config/default -n awx
+
+kubectl get pods -n awx
+
+sudo nano awx-deploy.yaml 
+
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: awx
+  namespace: awx
+spec:
+  service_type: nodeport
+  projects_persistence: false
+  postgres_storage_class: standard
+
+kubectl apply -f awx-deploy.yaml -n awx
+
+kubectl get pods -n awx          -- postgres to fully come up
+
+kubectl get pods -n awx -w          -- awx pods getting created
+
+kubectl get pvc -n awx
+
+kubectl get svc -n awx
+
+minikube ip
+
+kubectl get secret awx-admin-password -n awx -o jsonpath="{.data.password}" | base64 --decode
+
+
